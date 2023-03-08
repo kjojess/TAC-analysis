@@ -141,7 +141,7 @@ R2$Efficiency_adj<- 10^(-1/R2$Quantity_log)-1
 
 Summarize NTC results
 ```{r message=FALSE, warning=FALSE}
-TAC_NTC<-read.csv("2022-11-18 TAC linearity datafile .csv", na.strings=c("","NA"))
+TAC_NTC<-read.csv("sample_data.csv", na.strings=c("","NA"))
 
 TAC_NTC <- TAC_NTC %>%
   subset(Sample.Name=="NTC")
