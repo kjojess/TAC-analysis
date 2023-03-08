@@ -1,0 +1,172 @@
+---
+title: "TAC linearity summary"
+author: "Kelsey Jesser"
+date: "11/12/22"
+output: html_document
+---
+#clear R env
+```{r message=FALSE, warning=FALSE}
+rm(list = ls())
+```
+
+Load libraries
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(ggpmisc)
+library(plyr)
+library(dplyr)
+library(tidyr)
+```
+
+Import data file
+```{r message=FALSE, warning=FALSE}
+TAC<-read.csv("2022-11-18 TAC linearity datafile .csv", na.strings=c("","NA"))
+```
+
+Plot a standard curve and summarize efficiency for each target
+```{r message=FALSE, warning=FALSE}
+#Format data and add column with logs of quantities
+TAC$CT<-as.numeric(gsub(",","",TAC$CT))
+
+TAC$Quantity<-as.numeric(gsub(",","",TAC$Quantity))
+TAC$Quantity_log<-log10(TAC$Quantity)
+
+#summarize efficiencies
+TAC<-TAC[!is.na(TAC$CT),]
+TAC<-TAC[!is.na(TAC$Quantity_log),]
+TAC<-TAC[rowSums(is.na(TAC)) != ncol(TAC), ]
+efficiency_summ<-ddply(TAC, "Target.Name", function(x) {
+  model <- lm(CT ~ Quantity_log, data = x)
+  coef(model)})
+
+colnames(efficiency_summ) <- c("Target.Name", "Y.intercept","Slope")
+
+efficiency_summ$Efficiency<-10^(-1/efficiency_summ$Slope)-1
+
+#create a list of dataframes by target
+targets=by(TAC, TAC[,"Target.Name"], function(x) x)
+
+#plot of standard curve points across all targets
+p<-ggplot(TAC, aes(x = Quantity_log, y = CT)) +
+  geom_point()
+p
+
+#plot standard curves for all targets
+target_plots <- function(targets){
+  ggplot(targets, aes(x = Quantity_log, y = CT)) +
+    geom_point()+
+    stat_poly_line(formula = y~x, se=FALSE) +
+    stat_poly_eq(aes(label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*")), formula= y~x, label.y=0.25)
+  }
+
+q1 <- lapply(targets, target_plots) 
+
+q2 <- lapply(seq_along(q1), function(i) { 
+  q1[[i]] + ggtitle(names(targets)[i])
+})
+
+q2 #careful--this command makes a lot of plots!
+
+#faceted plot with all adjusted standard curves for all targets
+r<-ggplot(TAC, aes(x = Quantity_log, y = CT)) +
+  geom_point() +
+  facet_wrap(~ Target.Name)+
+  stat_poly_line(formula = y~x, se=FALSE) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*")), formula= y~x, label.y=20)
+r
+```
+
+Plot standard curves and summarize efficiencies without last point in the curve (where it flattens out as it approaches the LOD)
+```{r message=FALSE, warning=FALSE}
+#remove last point on standard curve
+TAC_adj <- TAC[TAC$Quantity_log != 0, ]
+#TAC_adj <- TAC[TAC$Quantity_log != 0, ] #run this to look at standard curves without last two dilutions to improve efficencies of AMR gene assays and other targets with lower LODs
+
+#create a list of dataframes by target
+targets_adj=by(TAC_adj, TAC_adj[,"Target.Name"], function(x) x)
+
+#plot adjusted standard curves for all targets
+target_plots_adj <- function(targets_adj){
+  ggplot(targets_adj, aes(x = Quantity_log, y = CT)) +
+    geom_point()+
+    stat_poly_line(formula = y~x, se=FALSE) +
+    stat_poly_eq(aes(label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*")), formula= y~x, label.y=0.25)
+  }
+
+s1 <- lapply(targets_adj, target_plots_adj) 
+
+s2 <- lapply(seq_along(s1), function(i) { 
+  s1[[i]] + ggtitle(names(targets_adj)[i])
+})
+
+s2
+
+#faceted plot with all adjusted standard curves for all targets
+t<-ggplot(TAC_adj, aes(x = Quantity_log, y = CT)) +
+  geom_point() +
+  facet_wrap(~ Target.Name)+
+  stat_poly_line(formula = y~x, se=FALSE) +
+  stat_poly_eq(aes(label = paste(after_stat(eq.label), after_stat(rr.label), sep = "*\", \"*")), formula= y~x, label.y=20)
+t
+
+```
+
+Summarize dilutions with detection and high and low CT values for each target FIX THIS
+```{r message=FALSE, warning=FALSE}
+TAC_CT<-TAC %>% select(Target.Name, Sample.Name, CT, R.superscript.2.)
+
+high_low<-TAC_CT %>% 
+  group_by(Target.Name) %>%
+  mutate(
+    CT_min=min(CT, na.rm=T),
+    CT_max=max(CT, na.rm=T)) %>%
+  mutate(
+    Dilution_min=min(Sample.Name, na.rm=T), 
+    Dilution_max=max(Sample.Name, na.rm=T)) %>%
+  select(-Sample.Name) %>%
+  select(-CT)
+```
+
+Summarize adjusted (without lowest dilution) slope, efficiency, and R2 values for each target 
+```{r message=FALSE, warning=FALSE}
+R2<- TAC_adj %>%
+   group_by(Target.Name) %>%
+   dplyr::summarise(model = list(lm(CT ~ Quantity_log, data = cur_data())),
+             coef = list(coef(model[[1]])),
+             R2_adj = summary(model[[1]])$r.sq)%>%
+   unnest_wider(coef, names_repair = 'unique')
+
+R2$Efficiency_adj<- 10^(-1/R2$Quantity_log)-1
+```
+
+Summarize NTC results
+```{r message=FALSE, warning=FALSE}
+TAC_NTC<-read.csv("2022-11-18 TAC linearity datafile .csv", na.strings=c("","NA"))
+
+TAC_NTC <- TAC_NTC %>%
+  subset(Sample.Name=="NTC")
+
+TAC_NTC$CT<-as.numeric(gsub(",","",TAC_NTC$CT))
+TAC_NTC<- TAC_NTC%>% 
+  select(Target.Name, CT)%>%
+  dplyr::rename(NTC_CT=CT)
+
+```
+
+Summary table
+```{r message=FALSE, warning=FALSE}
+summary<-merge(efficiency_summ, R2)
+summary<-merge(high_low, summary)
+summary<-merge(TAC_NTC, summary)
+summary <- summary %>% 
+  distinct(.keep_all = TRUE) %>%
+  select(-model) %>%
+  relocate(R.superscript.2., .before=Efficiency) %>%
+  relocate(NTC_CT, .before=Y.intercept)%>%
+  dplyr::rename(R2=R.superscript.2.) %>%
+  dplyr::rename(Y.intercept_adj='(Intercept)') %>%
+  dplyr::rename(Slope_adj=Quantity_log)%>%
+  mutate_if(is.numeric, round, digits=2)
+
+write.csv(summary,file="TAC_linearity_test_4_summary.csv")
+```
