@@ -20,7 +20,7 @@ library(tidyr)
 
 Import data file
 ```{r message=FALSE, warning=FALSE}
-TAC<-read.csv("2022-11-18 TAC linearity datafile .csv", na.strings=c("","NA"))
+TAC<-read.csv("Sample_data.csv", na.strings=c("","NA"))
 ```
 
 Plot a standard curve and summarize efficiency for each target
@@ -168,5 +168,5 @@ summary <- summary %>%
   dplyr::rename(Slope_adj=Quantity_log)%>%
   mutate_if(is.numeric, round, digits=2)
 
-write.csv(summary,file="TAC_linearity_test_4_summary.csv")
+write.csv(summary,file="TAC_sample_linearity_summary.csv")
 ```
