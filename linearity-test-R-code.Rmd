@@ -2,7 +2,7 @@
 title: "TAC linearity summary"
 author: "Kelsey Jesser"
 date: "11/12/22"
-output: html_document
+output: pdf_document
 ---
 #clear R env
 ```{r message=FALSE, warning=FALSE}
