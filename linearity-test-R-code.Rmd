@@ -111,7 +111,7 @@ t
 
 ```
 
-Summarize dilutions with detection and high and low CT values for each target FIX THIS
+Summarize dilutions with detection and high and low CT values for each target 
 ```{r message=FALSE, warning=FALSE}
 TAC_CT<-TAC %>% select(Target.Name, Sample.Name, CT, R.superscript.2.)
 
